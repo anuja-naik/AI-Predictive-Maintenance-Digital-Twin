@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DigiTwin.AI — Predictive Maintenance</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#04080f;--panel:#0b1220;--panel2:#0f1a2e;--border:#1a2d4a;
+    --teal:#00e5c0;--teal2:#00b89a;--amber:#f59e0b;--red:#ef4444;
+    --green:#22c55e;--blue:#3b82f6;--text:#c8ddf5;--dim:#4a6080;
+    --font-mono:'Space Mono',monospace;--font-display:'Syne',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--font-mono);min-height:100vh;overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;z-index:1000;pointer-events:none;
+    background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,229,192,0.012) 2px,rgba(0,229,192,0.012) 4px);}
+
+  /* TOP BAR */
+  .topbar{display:flex;align-items:center;justify-content:space-between;
+    padding:12px 24px;border-bottom:1px solid var(--border);
+    background:rgba(11,18,32,0.97);backdrop-filter:blur(10px);
+    position:sticky;top:0;z-index:100;}
+  .logo{display:flex;align-items:center;gap:10px;}
+  .logo-icon{width:28px;height:28px;border:2px solid var(--teal);border-radius:50%;display:flex;align-items:center;justify-content:center;}
+  .logo-dot{width:8px;height:8px;background:var(--teal);border-radius:50%;animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.8)}}
+  .logo-text{font-family:var(--font-display);font-weight:800;font-size:16px;color:#fff;}
+  .logo-sub{font-size:9px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;}
+  .topbar-right{display:flex;align-items:center;gap:12px;}
+  .live-badge{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--teal);letter-spacing:1px;}
+  .live-dot{width:6px;height:6px;background:var(--teal);border-radius:50%;animation:pulse 1s infinite;}
+  .team-badge{font-size:10px;color:var(--dim);background:var(--panel2);border:1px solid var(--border);padding:4px 10px;border-radius:4px;}
+  .server-badge{font-size:10px;padding:4px 10px;border-radius:4px;border:1px solid;transition:all 0.3s;}
+  .server-badge.connected{color:var(--green);border-color:rgba(34,197,94,0.4);background:rgba(34,197,94,0.08);}
+  .server-badge.connecting{color:var(--amber);border-color:rgba(245,158,11,0.4);background:rgba(245,158,11,0.08);}
+  .server-badge.offline{color:var(--dim);border-color:var(--border);background:var(--panel2);}
+
+  /* TRAINING BANNER */
+  #train-banner{background:linear-gradient(90deg,var(--panel2),rgba(0,229,192,0.04));
+    border-bottom:1px solid var(--border);padding:9px 24px;
+    display:flex;align-items:center;gap:12px;font-size:11px;}
+  .train-progress{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
+  .train-bar{height:100%;background:var(--teal);width:0%;transition:width 0.3s;}
+
+  /* LIVE MODE BAR */
+  .mode-bar{display:flex;align-items:center;gap:10px;padding:10px 24px;
+    background:var(--panel);border-bottom:1px solid var(--border);}
+  .mode-label{font-size:10px;color:var(--dim);letter-spacing:1px;margin-right:4px;}
+  .mode-btn{padding:6px 14px;border-radius:4px;font-family:var(--font-mono);font-size:10px;
+    cursor:pointer;border:1px solid var(--border);color:var(--dim);background:var(--panel2);
+    letter-spacing:1px;transition:all 0.2s;}
+  .mode-btn:hover{border-color:var(--teal);color:var(--teal);}
+  .mode-btn.active{border-color:var(--teal);color:var(--bg);background:var(--teal);font-weight:700;}
+  .mode-btn.active.warn{background:var(--amber);border-color:var(--amber);color:var(--bg);}
+  .mode-btn.active.crit{background:var(--red);border-color:var(--red);color:#fff;animation:flashbtn 1s infinite;}
+  @keyframes flashbtn{0%,100%{opacity:1}50%{opacity:0.7}}
+  .live-toggle{margin-left:auto;padding:7px 18px;border-radius:4px;font-family:var(--font-display);
+    font-size:12px;font-weight:700;cursor:pointer;border:none;letter-spacing:1px;transition:all 0.2s;}
+  .live-toggle.start{background:var(--teal);color:var(--bg);}
+  .live-toggle.stop{background:rgba(239,68,68,0.2);color:var(--red);border:1px solid var(--red);}
+  .tick-counter{font-size:10px;color:var(--dim);margin-left:8px;}
+
+  /* MAIN GRID */
+  .main{padding:16px 24px;display:grid;
+    grid-template-columns:1fr 1fr 1fr 290px;
+    grid-template-rows:auto auto auto auto;gap:14px;}
+
+  /* METRIC CARDS */
+  .metric-row{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  .metric-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;
+    padding:14px 18px;position:relative;overflow:hidden;transition:border-color 0.4s;}
+  .metric-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--teal);transition:background 0.4s;}
+  .metric-card.warn::before{background:var(--amber);}
+  .metric-card.crit::before{background:var(--red);}
+  .metric-label{font-size:9px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
+  .metric-value{font-family:var(--font-display);font-weight:800;font-size:34px;color:#fff;line-height:1;transition:color 0.3s;}
+  .metric-value span{font-size:14px;color:var(--dim);}
+  .metric-sub{font-size:10px;color:var(--dim);margin-top:4px;}
+  .status-badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;letter-spacing:1px;margin-top:6px;}
+  .badge-normal{background:rgba(34,197,94,0.15);color:var(--green);border:1px solid rgba(34,197,94,0.3);}
+  .badge-warn{background:rgba(245,158,11,0.15);color:var(--amber);border:1px solid rgba(245,158,11,0.3);}
+  .badge-crit{background:rgba(239,68,68,0.15);color:var(--red);border:1px solid rgba(239,68,68,0.3);animation:flashbtn 1s infinite;}
+
+  /* ALERT STRIP */
+  .alert-strip{grid-column:1/-1;display:flex;gap:8px;}
+  .alert-chip{padding:6px 14px;border-radius:4px;font-size:10px;letter-spacing:1px;
+    display:flex;align-items:center;gap:6px;flex:1;justify-content:center;
+    opacity:0.35;transition:opacity 0.3s;border:1px solid var(--border);}
+  .alert-chip.active{opacity:1;}
+  .chip-normal{border-color:var(--green);color:var(--green);background:rgba(34,197,94,0.05);}
+  .chip-temp{border-color:var(--amber);color:var(--amber);background:rgba(245,158,11,0.05);}
+  .chip-load{border-color:var(--amber);color:var(--amber);background:rgba(245,158,11,0.05);}
+  .chip-vib{border-color:var(--red);color:var(--red);background:rgba(239,68,68,0.05);}
+  .chip-crit{border-color:var(--red);color:var(--red);background:rgba(239,68,68,0.08);animation:flashbtn 1s infinite;}
+
+  /* PANELS */
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;display:flex;flex-direction:column;}
+  .panel-title{font-size:9px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;
+    margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;}
+  .panel-tag{background:var(--panel2);border:1px solid var(--border);padding:2px 8px;border-radius:3px;font-size:9px;color:var(--teal);}
+
+  /* HEALTH GAUGE */
+  .health-panel{grid-column:1;grid-row:3;}
+  .gauge-wrap{display:flex;flex-direction:column;align-items:center;flex:1;justify-content:center;}
+  svg.gauge{width:190px;height:108px;overflow:visible;}
+  .health-number{font-family:var(--font-display);font-weight:800;font-size:46px;fill:#fff;}
+  .sensor-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px;width:100%;}
+  .sensor-box{background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:7px 8px;text-align:center;}
+  .sensor-label{font-size:8px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;}
+  .sensor-val{font-family:var(--font-display);font-size:16px;font-weight:800;color:#fff;transition:color 0.3s;}
+  .sensor-unit{font-size:8px;color:var(--dim);}
+  .recon-bar{margin-top:8px;width:100%;}
+  .recon-label{font-size:9px;color:var(--dim);display:flex;justify-content:space-between;margin-bottom:3px;}
+  .recon-track{height:4px;background:var(--border);border-radius:2px;}
+  .recon-fill{height:100%;background:var(--teal);border-radius:2px;width:14%;transition:width 0.5s,background 0.3s;}
+
+  /* CHART PANELS */
+  .loss-panel{grid-column:2/4;grid-row:3;}
+  .health-trend-panel{grid-column:1/4;grid-row:4;}
+  canvas{width:100%;display:block;}
+
+  /* WHAT-IF PANEL */
+  .whatif-panel{grid-column:4;grid-row:3/5;}
+  .slider-group{margin-bottom:12px;}
+  .slider-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;}
+  .slider-name{font-size:10px;color:var(--text);}
+  .slider-val{font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--teal);}
+  input[type=range]{width:100%;-webkit-appearance:none;height:4px;background:var(--border);border-radius:2px;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--teal);cursor:pointer;border:2px solid var(--bg);}
+  .sim-btn{width:100%;padding:11px;background:var(--teal);color:var(--bg);
+    font-family:var(--font-display);font-weight:800;font-size:12px;letter-spacing:1px;
+    border:none;border-radius:6px;cursor:pointer;margin-top:6px;transition:all 0.2s;}
+  .sim-btn:hover{background:var(--teal2);}
+  .sim-btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .decision-box{margin-top:12px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;}
+  .dec-title{font-size:9px;color:var(--dim);letter-spacing:1px;margin-bottom:5px;display:flex;justify-content:space-between;}
+  .dec-text{font-size:11px;color:var(--text);line-height:1.6;}
+  .arch-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);font-size:10px;color:var(--dim);}
+  .arch-row:last-child{border:none;}
+  .arch-val{color:var(--teal);font-family:var(--font-display);font-size:11px;}
+
+  /* EVAL PANEL */
+  .eval-panel{grid-column:1;grid-row:4;}
+  .eval-big{text-align:center;padding:8px 0;}
+  .eval-pct{font-family:var(--font-display);font-weight:800;font-size:48px;color:var(--teal);}
+  .eval-label{font-size:10px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;}
+  .eval-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:10px;}
+  .eval-row:last-child{border:none;}
+  .eval-row-val{color:var(--teal);}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon"><div class="logo-dot"></div></div>
+    <div><div class="logo-text">DigiTwin.AI</div>
+    <div class="logo-sub">Predictive Maintenance · Digital Twin Platform</div></div>
+  </div>
+  <div class="topbar-right">
+    <div class="server-badge connecting" id="server-badge">⟳ Connecting to Python backend...</div>
+    <div class="live-badge"><div class="live-dot"></div> LIVE MONITORING</div>
+    <div class="team-badge">Tech Titans · PICT Pune · Apr 2026</div>
+  </div>
+</div>
+
+<div id="train-banner">
+  <span id="train-status" style="color:var(--teal);font-size:11px;">⚙ TRAINING AUTOENCODER — Architecture: 3→8→4→2→4→8→3</span>
+  <div class="train-progress"><div class="train-bar" id="train-bar"></div></div>
+  <span id="train-epoch" style="color:var(--dim);font-size:10px;white-space:nowrap;">Initialising...</span>
+</div>
+
+<!-- LIVE MODE CONTROLS -->
+<div class="mode-bar">
+  <span class="mode-label">LIVE MODE:</span>
+  <button class="mode-btn active" id="btn-degrading" onclick="switchMode('degrading')">📉 Degrading</button>
+  <button class="mode-btn warn" id="btn-spike" onclick="switchMode('spike')">⚡ Spike & Recovery</button>
+  <button class="mode-btn" id="btn-fluctuating" onclick="switchMode('fluctuating')">〜 Fluctuating</button>
+  <span class="tick-counter" id="tick-counter">Tick: —</span>
+  <button class="live-toggle start" id="live-btn" onclick="toggleLive()">▶ Start Live</button>
+</div>
+
+<div class="main">
+  <!-- METRICS -->
+  <div class="metric-row">
+    <div class="metric-card" id="card-health">
+      <div class="metric-label">Machine Health Index</div>
+      <div class="metric-value" id="m-health">—<span>%</span></div>
+      <div id="m-badge" class="status-badge badge-normal">—</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Remaining Useful Life</div>
+      <div class="metric-value" id="m-rul">—<span> days</span></div>
+      <div class="metric-sub">Projected failure threshold: 20%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Reconstruction MSE</div>
+      <div class="metric-value" id="m-mse" style="font-size:26px;">—</div>
+      <div class="metric-sub">Anomaly threshold: 0.1500</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Anomaly Detection Acc.</div>
+      <div class="metric-value" id="m-acc">—<span>%</span></div>
+      <div class="metric-sub">95th-percentile threshold</div>
+    </div>
+  </div>
+
+  <!-- ALERTS -->
+  <div class="alert-strip">
+    <div class="alert-chip chip-normal active" id="chip-normal">✓ Normal Op.</div>
+    <div class="alert-chip chip-temp" id="chip-temp">↑ High Temp</div>
+    <div class="alert-chip chip-load" id="chip-load">⚡ Overload</div>
+    <div class="alert-chip chip-vib" id="chip-vib">▣ High Vibration</div>
+    <div class="alert-chip chip-crit" id="chip-crit">● Critical</div>
+  </div>
+
+  <!-- HEALTH GAUGE -->
+  <div class="panel health-panel">
+    <div class="panel-title">Digital Twin — Health Monitor <span id="ae-tag" class="panel-tag">AI · 3→8→4→2→4→8→3</span></div>
+    <div class="gauge-wrap">
+      <svg class="gauge" viewBox="0 0 200 110">
+        <defs>
+          <linearGradient id="gg" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#ef4444"/>
+            <stop offset="50%" style="stop-color:#f59e0b"/>
+            <stop offset="100%" style="stop-color:#00e5c0"/>
+          </linearGradient>
+        </defs>
+        <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#1a2d4a" stroke-width="12" stroke-linecap="round"/>
+        <path id="gauge-fill" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#gg)" stroke-width="12" stroke-linecap="round"
+          stroke-dasharray="251" stroke-dashoffset="251" style="transition:stroke-dashoffset 0.6s ease;"/>
+        <line id="gauge-needle" x1="100" y1="100" x2="100" y2="28" stroke="#fff" stroke-width="2" stroke-linecap="round"
+          transform-origin="100 100" style="transition:transform 0.6s ease;" transform="rotate(-90)"/>
+        <circle cx="100" cy="100" r="5" fill="#fff"/>
+        <text text-anchor="middle" class="health-number" id="g-health" x="100" y="82">—</text>
+        <text text-anchor="middle" style="font-size:14px;fill:var(--dim);font-family:var(--font-mono)" x="100" y="96">%</text>
+        <text text-anchor="middle" id="g-status" x="100" y="112" style="font-family:var(--font-display);font-size:13px;font-weight:700;fill:#00e5c0;">—</text>
+      </svg>
+      <div class="sensor-row">
+        <div class="sensor-box">
+          <div class="sensor-label">Temperature</div>
+          <div class="sensor-val" id="sv-temp">—</div><div class="sensor-unit">°C</div>
+        </div>
+        <div class="sensor-box">
+          <div class="sensor-label">Load</div>
+          <div class="sensor-val" id="sv-load">—</div><div class="sensor-unit">%</div>
+        </div>
+        <div class="sensor-box">
+          <div class="sensor-label">Vibration</div>
+          <div class="sensor-val" id="sv-vib">—</div><div class="sensor-unit">mm/s</div>
+        </div>
+      </div>
+      <div class="recon-bar">
+        <div class="recon-label"><span>RECON. MSE</span><span id="recon-val">—</span></div>
+        <div class="recon-track"><div class="recon-fill" id="recon-fill"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRAINING LOSS CHART -->
+  <div class="panel loss-panel">
+    <div class="panel-title">Autoencoder Training Loss <span class="panel-tag" id="loss-tag">Epochs: 0/80</span></div>
+    <canvas id="loss-chart" height="165"></canvas>
+  </div>
+
+  <!-- WHAT-IF + MODEL ARCH -->
+  <div class="panel whatif-panel">
+    <div class="panel-title">What-If Simulator <span class="panel-tag">Interactive</span></div>
+    <div class="slider-group">
+      <div class="slider-header">
+        <div class="slider-name">↑ Temperature</div>
+        <div class="slider-val"><span id="sl-temp-val">65.0</span> °C</div>
+      </div>
+      <input type="range" id="sl-temp" min="20" max="120" value="65" step="1">
+    </div>
+    <div class="slider-group">
+      <div class="slider-header">
+        <div class="slider-name">↑ Machine Load</div>
+        <div class="slider-val"><span id="sl-load-val">50.0</span> %</div>
+      </div>
+      <input type="range" id="sl-load" min="0" max="100" value="50" step="1">
+    </div>
+    <div class="slider-group">
+      <div class="slider-header">
+        <div class="slider-name">▣ Vibration</div>
+        <div class="slider-val"><span id="sl-vib-val">2.5</span> mm/s</div>
+      </div>
+      <input type="range" id="sl-vib" min="0" max="10" value="2.5" step="0.1">
+    </div>
+    <button class="sim-btn" id="sim-btn" onclick="runSimulation()">▶ Run Simulation</button>
+
+    <div class="decision-box">
+      <div class="dec-title">Decision Engine <span style="color:var(--teal)">AI Recommendations</span></div>
+      <div class="dec-text" id="dec-text">Awaiting simulation...</div>
+    </div>
+
+    <div style="margin-top:14px;">
+      <div class="panel-title" style="margin-bottom:8px;">Model Architecture <span class="panel-tag">Autoencoder</span></div>
+      <div class="arch-row"><span>+ Input Layer</span><span class="arch-val">3 features</span></div>
+      <div class="arch-row"><span>+ Encoder</span><span class="arch-val">3→8→4</span></div>
+      <div class="arch-row" style="color:var(--teal)"><span>● Latent Space</span><span class="arch-val">2D bottleneck</span></div>
+      <div class="arch-row"><span>+ Decoder</span><span class="arch-val">2→4→8→3</span></div>
+      <div class="arch-row"><span>+ Output (Sigmoid)</span><span class="arch-val">3 features</span></div>
+      <div style="font-size:9px;color:var(--dim);margin-top:6px;" id="train-info">Trained on 800 normal samples</div>
+    </div>
+  </div>
+
+  <!-- EVAL PANEL -->
+  <div class="panel eval-panel">
+    <div class="panel-title">Anomaly Detection — Eval <span class="panel-tag">Normal vs Anomalous</span></div>
+    <div class="eval-big">
+      <div class="eval-pct" id="eval-acc">—%</div>
+      <div class="eval-label">Detection Accuracy</div>
+    </div>
+    <div class="eval-row"><span>Normal MSE mean</span><span class="eval-row-val" id="ev-nm">—</span></div>
+    <div class="eval-row"><span>Normal MSE max</span><span class="eval-row-val" id="ev-nx">—</span></div>
+    <div class="eval-row"><span>Anomalous MSE mean</span><span class="eval-row-val" id="ev-am">—</span></div>
+    <div class="eval-row"><span>Anomalous MSE max</span><span class="eval-row-val" id="ev-ax">—</span></div>
+    <div class="eval-row"><span>Threshold (95th pctile)</span><span class="eval-row-val" id="ev-th">—</span></div>
+    <div class="eval-row"><span>Anomaly types</span><span class="eval-row-val">Overheat · Overload · Bearing</span></div>
+  </div>
+
+  <!-- HEALTH TREND CHART -->
+  <div class="panel health-trend-panel" style="grid-column:2/4;grid-row:4;">
+    <div class="panel-title">Live Health Index — Real-Time Timeline <span class="panel-tag" id="mode-tag">Mode: —</span></div>
+    <canvas id="health-chart" height="130"></canvas>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:5000';
+let liveRunning = false, liveInterval = null;
+let currentMode = 'degrading';
+let healthHistory = [], lossLog = [];
+let modelReady = false, serverConnected = false;
+
+// ── CANVAS CHARTS ──────────────────────────────────────
+function drawChart(canvasId, data, color, ymin, ymax, fill) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || data.length < 2) return;
+  const W = canvas.offsetWidth || 400, H = canvas.offsetHeight || 160;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  const pad = { t:10, r:10, b:22, l:44 };
+  const cw = W-pad.l-pad.r, ch = H-pad.t-pad.b;
+  const mn = ymin!==null ? ymin : Math.min(...data);
+  const mx = ymax!==null ? ymax : Math.max(...data);
+  const range = Math.max(mx-mn, 0.001);
+
+  // Grid lines
+  ctx.strokeStyle = '#1a2d4a'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + ch*(1-i/4);
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
+    ctx.fillStyle = '#4a6080'; ctx.font = '9px Space Mono'; ctx.textAlign = 'right';
+    ctx.fillText((mn+range*i/4).toFixed(2), pad.l-4, y+3);
+  }
+
+  // Points
+  const pts = data.map((v,i) => [pad.l + i/(data.length-1)*cw, pad.t + ch*(1-(v-mn)/range)]);
+
+  if (fill) {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pad.t+ch);
+    pts.forEach(([x,y]) => ctx.lineTo(x,y));
+    ctx.lineTo(pts[pts.length-1][0], pad.t+ch);
+    ctx.closePath(); ctx.fill();
+  }
+
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+  ctx.beginPath();
+  pts.forEach(([x,y],i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y));
+  ctx.stroke();
+
+  // Dots (last 5 only to keep it clean)
+  ctx.fillStyle = color;
+  pts.slice(-5).forEach(([x,y]) => { ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill(); });
+
+  // X labels
+  ctx.fillStyle = '#4a6080'; ctx.font = '8px Space Mono'; ctx.textAlign = 'center';
+  [0,0.25,0.5,0.75,1].forEach(f => {
+    const i = Math.round(f*(data.length-1));
+    ctx.fillText('T+'+i, pad.l+f*cw, H-5);
+  });
+}
+
+// ── UPDATE UI ──────────────────────────────────────────
+function updateUI(d) {
+  const { temp, load, vib, mse, health, rul, status, recs } = d;
+
+  // Metrics
+  document.getElementById('m-health').innerHTML = `${health}<span>%</span>`;
+  document.getElementById('m-rul').innerHTML = `${rul}<span> days</span>`;
+  document.getElementById('m-mse').textContent = mse.toFixed(4);
+
+  const badge = document.getElementById('m-badge');
+  badge.textContent = status.s;
+  badge.className = 'status-badge ' + (status.s==='NORMAL'?'badge-normal':status.s==='WARNING'?'badge-warn':'badge-crit');
+  document.getElementById('card-health').className = 'metric-card ' + (status.s==='CRITICAL'?'crit':status.s==='WARNING'?'warn':'');
+
+  // Gauge
+  document.getElementById('g-health').textContent = health;
+  document.getElementById('g-status').textContent = status.s;
+  document.getElementById('g-status').setAttribute('fill', status.c==='green'?'#22c55e':status.c==='amber'?'#f59e0b':'#ef4444');
+  document.getElementById('gauge-fill').style.strokeDashoffset = 251*(1-health/100);
+  document.getElementById('gauge-needle').setAttribute('transform', `rotate(${-90+health/100*180})`);
+
+  // Sensors
+  const tempEl=document.getElementById('sv-temp'), loadEl=document.getElementById('sv-load'), vibEl=document.getElementById('sv-vib');
+  tempEl.textContent = temp.toFixed(1); tempEl.style.color = temp>90?'#ef4444':temp>70?'#f59e0b':'#fff';
+  loadEl.textContent = load.toFixed(0); loadEl.style.color = load>80?'#ef4444':load>65?'#f59e0b':'#fff';
+  vibEl.textContent  = vib.toFixed(1);  vibEl.style.color  = vib>7?'#ef4444':vib>5?'#f59e0b':'#fff';
+
+  // MSE bar
+  document.getElementById('recon-val').textContent = mse.toFixed(4);
+  const rf = document.getElementById('recon-fill');
+  rf.style.width = Math.min(mse/0.20*100,100)+'%';
+  rf.style.background = mse>0.15?'#ef4444':mse>0.08?'#f59e0b':'#00e5c0';
+
+  // Alert chips
+  ['chip-normal','chip-temp','chip-load','chip-vib','chip-crit'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  if(status.s==='CRITICAL') document.getElementById('chip-crit').classList.add('active');
+  else if(status.s==='WARNING'){
+    if(temp>90) document.getElementById('chip-temp').classList.add('active');
+    if(load>80) document.getElementById('chip-load').classList.add('active');
+    if(vib>7)   document.getElementById('chip-vib').classList.add('active');
+    if(temp<=90&&load<=80&&vib<=7) document.getElementById('chip-normal').classList.add('active');
+  } else document.getElementById('chip-normal').classList.add('active');
+
+  // Decision text
+  document.getElementById('dec-text').textContent = recs.join(' ');
+
+  // History + chart
+  healthHistory.push(health);
+  if(healthHistory.length > 60) healthHistory.shift();
+  const hColor = health<30?'#ef4444':health<60?'#f59e0b':'#00e5c0';
+  drawChart('health-chart', healthHistory, hColor, 0, 100, hColor.replace(')',',0.06)').replace('rgb','rgba').replace('#ef4444','rgba(239,68,68,0.06)').replace('#f59e0b','rgba(245,158,11,0.06)').replace('#00e5c0','rgba(0,229,192,0.06)'));
+}
+
+// ── SERVER POLL ────────────────────────────────────────
+async function pollStatus() {
+  try {
+    const r = await fetch(API+'/status', {signal: AbortSignal.timeout(2000)});
+    const d = await r.json();
+    serverConnected = true;
+    const badge = document.getElementById('server-badge');
+    badge.className = 'server-badge ' + (d.done?'connected':'connecting');
+    badge.textContent = d.done ? '✓ Python backend connected' : '⟳ Backend training...';
+
+    if(d.done && !modelReady) {
+      modelReady = true;
+      document.getElementById('m-acc').innerHTML = `${d.accuracy}<span>%</span>`;
+      document.getElementById('eval-acc').textContent = d.accuracy+'%';
+      document.getElementById('ev-nm').textContent = d.normal_mse_mean;
+      document.getElementById('ev-nx').textContent = d.normal_mse_max;
+      document.getElementById('ev-am').textContent = d.anomaly_mse_mean;
+      document.getElementById('ev-ax').textContent = d.anomaly_mse_max;
+      document.getElementById('ev-th').textContent = d.threshold;
+      document.getElementById('train-status').textContent = '✓ TRAINING COMPLETE — Python Autoencoder ready';
+      document.getElementById('train-bar').style.width = '100%';
+      document.getElementById('train-bar').style.background = '#22c55e';
+      document.getElementById('train-epoch').textContent = `Final MSE: ${d.loss}`;
+      document.getElementById('sim-btn').disabled = false;
+
+      // Load loss log
+      const lr = await fetch(API+'/loss_log');
+      const ld = await lr.json();
+      lossLog = ld.losses;
+      drawChart('loss-chart', lossLog, '#00e5c0', 0, null, 'rgba(0,229,192,0.07)');
+      document.getElementById('loss-tag').textContent = `80 over 80 epochs`;
+
+      // First simulation
+      runSimulation(65, 50, 2.5);
+    }
+
+    if(!d.done) {
+      // Estimate training progress
+      const r2 = await fetch(API+'/loss_log');
+      const ld2 = await r2.json();
+      if(ld2.losses.length > 0) {
+        lossLog = ld2.losses;
+        const pct = ld2.losses.length/80*100;
+        document.getElementById('train-bar').style.width = pct+'%';
+        document.getElementById('train-epoch').textContent = `Epoch ${ld2.losses.length}/80 | MSE: ${ld2.losses[ld2.losses.length-1].toFixed(5)}`;
+        drawChart('loss-chart', lossLog, '#00e5c0', 0, null, 'rgba(0,229,192,0.07)');
+      }
+    }
+  } catch(e) {
+    serverConnected = false;
+    document.getElementById('server-badge').className = 'server-badge offline';
+    document.getElementById('server-badge').textContent = '✗ Python server offline — run server.py';
+  }
+}
+
+// ── SIMULATION ─────────────────────────────────────────
+async function runSimulation(t, l, v) {
+  const temp = t ?? parseFloat(document.getElementById('sl-temp').value);
+  const load = l ?? parseFloat(document.getElementById('sl-load').value);
+  const vib  = v ?? parseFloat(document.getElementById('sl-vib').value);
+
+  if(serverConnected && modelReady) {
+    // Use Python backend
+    try {
+      const r = await fetch(API+'/simulate', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({temp,load,vib})
+      });
+      const d = await r.json();
+      if(!d.error) { updateUI(d); return; }
+    } catch(e) {}
+  }
+  // Fallback: JS inference
+  updateUI(jsSimulate(temp, load, vib));
+}
+
+// JS fallback simulation (simplified)
+function jsSimulate(temp, load, vib) {
+  const tn=(temp-20)/100, ln=load/100, vn=vib/10;
+  const mse = Math.min(0.02 + (tn>0.7?(tn-0.7)*0.8:0) + (ln>0.8?(ln-0.8)*0.9:0) + (vn>0.65?(vn-0.65)*0.9:0), 0.35);
+  const health = Math.max(0, Math.round((1-Math.min(mse/0.20,1))*100));
+  const stress = tn*0.40+ln*0.35+vn*0.25, dr=0.1+stress*0.9;
+  const rul = Math.max(0, Math.round(Math.max(0,health-20)/Math.max(dr,0.01)*1.5));
+  const s = mse>0.15||health<30?{s:'CRITICAL',c:'red',action:'Immediate maintenance.'}:mse>0.08||health<60?{s:'WARNING',c:'amber',action:'Schedule maintenance within 48h.'}:{s:'NORMAL',c:'green',action:'No action required.'};
+  const recs=[];
+  if(temp>90) recs.push(`Temp ${temp}°C high. Improve cooling.`);
+  if(load>80) recs.push(`Load ${load}% overload.`);
+  if(vib>7) recs.push(`Vibration ${vib}mm/s critical.`);
+  if(!recs.length) recs.push('All parameters nominal. No action required.');
+  return {temp,load,vib,mse,health,rul,status:s,recs};
+}
+
+// ── LIVE MODE ──────────────────────────────────────────
+let tick = 0;
+async function liveTick() {
+  tick++;
+  document.getElementById('tick-counter').textContent = `Tick: ${tick}`;
+
+  if(serverConnected && modelReady) {
+    try {
+      const r = await fetch(API+'/live/tick');
+      const d = await r.json();
+      if(!d.error) {
+        updateUI(d);
+        document.getElementById('sl-temp').value = d.temp;
+        document.getElementById('sl-load').value = d.load;
+        document.getElementById('sl-vib').value = d.vib.toFixed(1);
+        document.getElementById('sl-temp-val').textContent = d.temp.toFixed(1);
+        document.getElementById('sl-load-val').textContent = d.load.toFixed(0);
+        document.getElementById('sl-vib-val').textContent = d.vib.toFixed(1);
+        return;
+      }
+    } catch(e) {}
+  }
+  // JS fallback degrading
+  const t = Math.min(120, 65+tick*0.8+(Math.random()-0.5)*2);
+  const l = Math.min(100, 50+tick*0.6+(Math.random()-0.5)*2);
+  const v = Math.min(10,  2.5+tick*0.1+(Math.random()-0.5)*0.4);
+  updateUI(jsSimulate(t,l,v));
+}
+
+function toggleLive() {
+  const btn = document.getElementById('live-btn');
+  if(liveRunning) {
+    clearInterval(liveInterval); liveRunning=false;
+    btn.textContent='▶ Start Live'; btn.className='live-toggle start';
+    tick=0; healthHistory=[];
+  } else {
+    liveRunning=true; tick=0; healthHistory=[];
+    btn.textContent='⏹ Stop Live'; btn.className='live-toggle stop';
+    liveTick();
+    liveInterval=setInterval(liveTick,1500);
+  }
+}
+
+async function switchMode(mode) {
+  currentMode=mode;
+  ['degrading','spike','fluctuating'].forEach(m=>{
+    const b=document.getElementById('btn-'+m);
+    b.classList.remove('active');
+  });
+  const btn=document.getElementById('btn-'+mode);
+  btn.classList.add('active');
+  document.getElementById('mode-tag').textContent='Mode: '+mode.charAt(0).toUpperCase()+mode.slice(1);
+  tick=0; healthHistory=[];
+  if(serverConnected) {
+    try { await fetch(API+'/live/mode/'+mode,{method:'POST'}); } catch(e){}
+  }
+  if(liveRunning) { clearInterval(liveInterval); liveTick(); liveInterval=setInterval(liveTick,1500); }
+}
+
+// ── SLIDERS ────────────────────────────────────────────
+['temp','load','vib'].forEach(name=>{
+  document.getElementById('sl-'+name).addEventListener('input',e=>{
+    document.getElementById('sl-'+name+'-val').textContent=parseFloat(e.target.value).toFixed(name==='vib'?1:0);
+  });
+});
+
+// ── INIT ───────────────────────────────────────────────
+document.getElementById('sim-btn').disabled = true;
+setInterval(pollStatus, 2000);
+pollStatus();
+switchMode('degrading');
+</script>
+</body>
+</html>
